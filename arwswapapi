@@ -1,0 +1,97 @@
+  const quoteParams = new URLSearchParams();
+  for (const [key, value] of priceParams.entries()) {
+    quoteParams.append(key, value);
+  }
+ 
+  const quoteResponse = await fetch(
+    "https://api.0x.org/swap/permit2/quote?" + quoteParams.toString(),
+    {
+      headers,
+    }
+  );
+ 
+  const quote = await quoteResponse.json();
+  console.log("Fetching quote to swap 0.1 WETH for wstETH");
+  console.log("quoteResponse: ", quote);
+ 
+  // 1. Display the percentage breakdown of liquidity sources
+  if (quote.route) {
+    displayLiquiditySources(quote.route);
+  }
+ 
+  // 3. Display the buy/sell taxes for tokens
+  if (quote.tokenMetadata) {
+    displayTokenTaxes(quote.tokenMetadata);
+  }
+ 
+  // 2. Display monetization information
+  if (quote.affiliateFeeBps) {
+    const affiliateFee = (parseInt(quote.affiliateFeeBps) / 100).toFixed(2);
+    console.log(`Affiliate Fee: ${affiliateFee}%`);
+  }
+ 
+  if (quote.tradeSurplus && parseFloat(quote.tradeSurplus) > 0) {
+    console.log(`Trade Surplus Collected: ${quote.tradeSurplus}`);
+  }
+ 
+  // 4. Sign permit2.eip712 returned from quote
+  let signature: Hex | undefined;
+  if (quote.permit2?.eip712) {
+    try {
+      signature = await client.signTypedData(quote.permit2.eip712);
+      console.log("Signed permit2 message from quote response");
+    } catch (error) {
+      console.error("Error signing permit2 coupon:", error);
+    }
+ 
+    // 5. Append sig length and sig data to transaction.data
+    if (signature && quote?.transaction?.data) {
+      const signatureLengthInHex = numberToHex(size(signature), {
+        signed: false,
+        size: 32,
+      });
+ 
+      const transactionData = quote.transaction.data as Hex;
+      const sigLengthHex = signatureLengthInHex as Hex;
+      const sig = signature as Hex;
+ 
+      quote.transaction.data = concat([transactionData, sigLengthHex, sig]);
+    } else {
+      throw new Error("Failed to obtain signature or transaction data");
+    }
+  }
+ 
+  // 6. Submit transaction with permit2 signature
+  if (signature && quote.transaction.data) {
+    const nonce = await client.getTransactionCount({
+      address: client.account.address,
+    });
+ 
+    const signedTransaction = await client.signTransaction({
+      account: client.account,
+      chain: client.chain,
+      gas: quote?.transaction.gas ? BigInt(quote.transaction.gas) : undefined,
+      to: quote?.transaction.to,
+      data: quote.transaction.data,
+      value: quote?.transaction.value
+        ? BigInt(quote.transaction.value)
+        : undefined, // value is used for native tokens
+      gasPrice: quote?.transaction.gasPrice
+        ? BigInt(quote.transaction.gasPrice)
+        : undefined,
+      nonce: nonce,
+    });
+    const hash = await client.sendRawTransaction({
+      serializedTransaction: signedTransaction,
+    });
+ 
+    console.log("Transaction hash:", hash);
+ 
+    console.log(`See tx details at https://scrollscan.com/tx/${hash}`);
+  } else {
+    console.error("Failed to obtain a signature, transaction not sent.");
+  }
+};
+ 
+main();
+Advertisement
