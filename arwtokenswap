@@ -3,7 +3,7 @@
 
 pragma solidity >=0.5.0;
 
-/// @title Callback for IUniswapV3PoolActions#swap
+/// @title Callback for uni
 /// @notice Any contract that calls IUniswapV3PoolActions#swap must implement this interface
 interface IUniswapV3SwapCallback {
        /// @dev In the implementation you must pay the pool tokens owed .
