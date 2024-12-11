@@ -1,2 +1,2 @@
 Hello guys
-i am all in crypto
+i am in crypto
